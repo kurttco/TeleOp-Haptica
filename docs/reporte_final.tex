@@ -1,0 +1,938 @@
+%% ============================================================
+%% TE3001B — Fundamentación de Robótica
+%% Teleoperación con Sensado de Fuerza: xArm Lite 6
+%% Formato IEEE Transactions — Versión Final con Imágenes
+%% Prof. Alberto Muñoz — Computational Robotics Lab
+%% Tecnológico de Monterrey — 2026
+%% ============================================================
+\documentclass[journal,10pt,twoside]{IEEEtran}
+
+%% ── Paquetes ─────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{colortbl}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage{tcolorbox}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{url}
+\tcbuselibrary{breakable,skins}
+
+\hypersetup{colorlinks=true,linkcolor=tec_blue,urlcolor=tec_blue,citecolor=tec_blue}
+
+%% ── Colores ──────────────────────────────────────────────────
+\definecolor{tec_blue}{RGB}{0,68,124}
+\definecolor{tec_lightblue}{RGB}{0,140,200}
+\definecolor{tec_navy}{RGB}{0,31,84}
+\definecolor{tec_iceblue}{RGB}{220,237,250}
+\definecolor{tec_paleblue}{RGB}{235,245,255}
+\definecolor{tec_gray}{RGB}{100,100,100}
+\definecolor{code_bg}{RGB}{13,17,23}
+\definecolor{code_text}{RGB}{168,216,234}
+\definecolor{code_kw}{RGB}{86,156,214}
+\definecolor{code_str}{RGB}{206,145,120}
+\definecolor{code_cmt}{RGB}{106,153,85}
+\definecolor{box_info_border}{RGB}{0,68,124}
+\definecolor{box_warn_border}{RGB}{200,140,0}
+
+%% ── Cajas ────────────────────────────────────────────────────
+\newtcolorbox{infobox}[1][Nota]{
+  colback=tec_iceblue,colframe=box_info_border,
+  title={\textbf{#1}},fonttitle=\bfseries\small\color{tec_navy},
+  breakable,enhanced,left=4pt,right=4pt,top=3pt,bottom=3pt}
+\newtcolorbox{eqbox}[1][Ecuacion]{
+  colback=tec_paleblue,colframe=tec_lightblue,
+  title={\textbf{#1}},fonttitle=\bfseries\small\color{tec_blue},
+  breakable,enhanced,left=4pt,right=4pt}
+
+%% ── Código ───────────────────────────────────────────────────
+\lstdefinestyle{python}{
+  language=Python,backgroundcolor=\color{code_bg},
+  basicstyle=\ttfamily\scriptsize\color{code_text},
+  keywordstyle=\color{code_kw}\bfseries,
+  stringstyle=\color{code_str},commentstyle=\color{code_cmt}\itshape,
+  numbers=left,numberstyle=\tiny\color{tec_gray},numbersep=5pt,
+  frame=single,framerule=0.5pt,rulecolor=\color{tec_blue},
+  tabsize=4,showstringspaces=false,breaklines=true,
+  literate={á}{{\'{a}}}1{é}{{\'{e}}}1{í}{{\'{i}}}1
+           {ó}{{\'{o}}}1{ú}{{\'{u}}}1{ñ}{{\~{n}}}1}
+\lstdefinestyle{bash}{
+  language=bash,backgroundcolor=\color{code_bg},
+  basicstyle=\ttfamily\scriptsize\color{code_text},
+  keywordstyle=\color{code_kw}\bfseries,commentstyle=\color{code_cmt},
+  frame=single,framerule=0.5pt,rulecolor=\color{tec_blue},
+  numbers=none,breaklines=true}
+\lstdefinestyle{json}{
+  backgroundcolor=\color{code_bg},
+  basicstyle=\ttfamily\scriptsize\color{code_text},
+  frame=single,framerule=0.5pt,rulecolor=\color{tec_lightblue},
+  numbers=none,breaklines=true}
+\lstset{style=python}
+
+%% ── Macros ───────────────────────────────────────────────────
+\newcommand{\xarm}{xArm Lite 6}
+\newcommand{\ros}{ROS2}
+
+%% ── Metadatos ────────────────────────────────────────────────
+\begin{document}
+
+\title{\color{tec_navy}Teleoperación con Sensado de Fuerza Física\\
+  entre Dos \xarm{}:\\
+  Diseño, Implementación y Evaluación Experimental}
+
+\author{%
+  \IEEEauthorblockN{%
+    Fabricio Banda\IEEEauthorrefmark{1},\;
+    Manuel Ferro\IEEEauthorrefmark{1},
+    Alexandro Cardenas\IEEEauthorrefmark{1},
+    Fernando Proal\IEEEauthorrefmark{1},
+    Zacbe Ortega\IEEEauthorrefmark{1}}\\
+  \IEEEauthorblockA{%
+    \IEEEauthorrefmark{1}Computational Robotics Lab,
+    Tecnológico de Monterrey, Monterrey, N.L., México\\
+    \texttt{\{A00839916,A00836182,A01385387,A01385446,A00574358\}@tec.mx}}}
+\maketitle
+
+%% ── Abstract ─────────────────────────────────────────────────
+\begin{abstract}
+Se presenta el diseño e implementación de un sistema de teleoperación
+maestro-esclavo utilizando dos manipuladores \xarm{}.
+El brazo maestro es controlado mediante sensores de presión
+artesanales de esponja conductora de grafito (6~direcciones),
+permitiendo al operador comandar velocidades cartesianas en $X$,
+$Y$ y $Z$ manteniendo la orientación del efector fija.
+El brazo esclavo replica el movimiento del maestro en tiempo real
+y porta cinco sensores adicionales de fuerza que, al superar un
+umbral de $|\bm{F}|>3{,}0$\,N, activan un bloqueo sincronizado
+que detiene ambos brazos hasta que el contacto desaparece.
+La arquitectura se implementó sobre \ros{} (Jazzy), calculando el
+Jacobiano geométrico dinámicamente desde el árbol TF y aplicando
+pseudoinversa amortiguada (DLS, $\lambda=0{,}01$).
+Se realizaron tres pares de experimentos en simulación y en los
+robots físicos, obteniendo errores de seguimiento articular de
+$0{,}33$--$1{,}10$°\,RMS y un retardo de seguimiento de
+$\approx$\,100--150\,ms en condiciones reales.
+Video de demostración disponible en: \url{https://youtu.be/9yoCLF5ZJVQ}
+\end{abstract}
+
+\begin{IEEEkeywords}
+  teleoperación, sensado de fuerza, \xarm{}, Jacobiano geométrico,
+  ROS2, ESP32, sensores de grafito, pseudoinversa amortiguada,
+  detección de colisión, maestro-esclavo
+\end{IEEEkeywords}
+
+%% ============================================================
+\section{Introducción}
+%% ============================================================
+
+\IEEEPARstart{L}{a} teleoperación robótica con retroalimentación de
+fuerza es fundamental para extender las capacidades humanas en
+entornos remotos o peligrosos~\cite{murray1994}. Aplicaciones como
+cirugía mínimamente invasiva~\cite{hogan1985}, exploración espacial
+y manipulación de materiales peligrosos requieren que el operador
+``sienta'' el entorno remoto a través del robot.
+
+El \xarm{}, desarrollado por UFACTORY~\cite{xarm_github}, es un
+manipulador de 6~DOF para investigación. Su SDK Python permite
+control de posición, velocidad articular y modo servo en tiempo real.
+
+\subsection{Motivación}
+Se diseñaron sensores de presión artesanales de \emph{esponja
+conductora de grafito} como alternativa económica a los sensores
+F/T comerciales (que pueden costar miles de dólares), explorando
+la viabilidad en robótica educativa.
+
+\subsection{Contribuciones}
+\begin{itemize}[leftmargin=1.2em,itemsep=1pt]
+  \item Sensores de grafito para detección de fuerza en 5 y 6 direcciones.
+  \item Nodo \ros{} para teleoperación cartesiana con Jacobiano
+        calculado dinámicamente desde TF.
+  \item Detección de colisión en tiempo real con bloqueo sincronizado
+        e histéresis configurable.
+  \item Visualización en tiempo real de $F_x$, $F_y$, $F_z$ y $|\bm{F}|$.
+  \item Integración completa ESP32 + serial JSON + \ros{} Jazzy.
+\end{itemize}
+
+%% ============================================================
+\section{Marco Teórico}
+%% ============================================================
+
+\subsection{Jacobiano Geométrico}
+
+El \xarm{} tiene $n=6$ DOF con articulaciones rotacionales.
+El Jacobiano $\bm{J}(\bm{q})\in\mathbb{R}^{6\times6}$ mapea
+velocidades articulares a cartesianas~\cite{siciliano2009}:
+\begin{equation}
+  \dot{\bm{x}} = \bm{J}(\bm{q})\,\dot{\bm{q}}
+  \label{eq:jacobian}
+\end{equation}
+Para cada articulación rotacional~$i$:
+\begin{equation}
+  \bm{J}_i =
+  \begin{pmatrix}
+    \bm{z}_i \times (\bm{p}_{ee} - \bm{p}_i) \\
+    \bm{z}_i
+  \end{pmatrix}
+  \label{eq:jcol}
+\end{equation}
+
+\subsection{Pseudoinversa Amortiguada (DLS)}
+
+Para la cinemática inversa diferencial se usa DLS~\cite{spong2006}:
+\begin{equation}
+  \bm{J}^{+} = \bm{J}^\top
+    \!\left(\bm{J}\bm{J}^\top + \lambda^2\bm{I}\right)^{-1},
+  \quad \lambda=0{,}01
+  \label{eq:dls}
+\end{equation}
+El incremento articular por ciclo es $\Delta\bm{q}=\bm{J}^{+}\bm{\xi}$,
+donde $\bm{\xi}=[v_x,v_y,v_z,0,0,0]^\top$ fuerza traslación pura.
+
+\subsection{Elección del Modo de Control: SERVO vs. Par Calculado}
+\label{sec:ctc}
+
+El control de \textbf{par calculado} (CTC) es el esquema de control
+óptimo para un manipulador rígido, pues linealiza y desacopla la dinámica
+del robot mediante la ley:
+\begin{equation}
+  \bm{\tau} = \bm{M}(\bm{q})\bigl(K_p\bm{e}+K_v\dot{\bm{e}}+\ddot{\bm{q}}_d\bigr)
+            + \bm{C}(\bm{q},\dot{\bm{q}})\dot{\bm{q}} + \bm{g}(\bm{q})
+  \label{eq:ctc}
+\end{equation}
+produciendo la dinámica de error lineal
+$\ddot{\bm{e}} + K_v\dot{\bm{e}} + K_p\bm{e} = \bm{0}$~\cite{siciliano2009}.
+
+Sin embargo, implementar CTC sobre el \xarm{} desde la SDK Python
+presenta dos obstáculos técnicos insuperables en este proyecto:
+
+\begin{enumerate}[leftmargin=1.4em,itemsep=2pt]
+  \item \textbf{Acceso limitado al modo torque.}
+        La SDK del \xarm{} expone el modo de control de torque
+        (\texttt{set\_mode(4)}) pero la latencia de la interfaz TCP
+        interna es de $\approx$\,10--50\,ms por comando, lo que
+        hace imposible cerrar el lazo de par a la frecuencia mínima
+        requerida por CTC ($>$\,500\,Hz).
+  \item \textbf{Modelo dinámico no disponible.}
+        Las matrices $\bm{M}(\bm{q})$, $\bm{C}(\bm{q},\dot{\bm{q}})$
+        y $\bm{g}(\bm{q})$ del \xarm{} no son públicas.
+        Identificarlas experimentalmente requeriría un proceso de
+        caracterización dinámica fuera del alcance de este proyecto.
+\end{enumerate}
+
+Por estas razones se optó por el \textbf{modo SERVO}
+(\texttt{set\_mode(1)} + \texttt{set\_servo\_angle}), que delega el
+control de posición articular al controlador interno propietario del
+robot, operando a su frecuencia nominal de $\approx$\,250\,Hz de forma
+transparente. El lazo externo implementado en Python opera a 10--20\,Hz
+y envía únicamente referencias de posición $\bm{q}^{\text{ref}}$,
+lo que equivale funcionalmente a un \textbf{control de posición en
+espacio articular}. Esta elección sacrifica el desacoplamiento dinámico
+de CTC, pero garantiza estabilidad y aprovecha el controlador
+ya sintonizado de fábrica por UFACTORY.
+
+\begin{infobox}[Justificacion del modo SERVO]
+  \small
+  El modo SERVO del \xarm{} implementa internamente un controlador
+  de posición/velocidad de alta frecuencia. Al enviarle referencias
+  a 10--20\,Hz desde Python, el sistema opera en cascada:
+  lazo externo (ROS2, 10--20\,Hz) $\to$ lazo interno (firmware,
+  $\approx$\,250\,Hz). Este esquema es equivalente al usado en
+  sistemas comerciales de teleoperación de baja latencia como
+  los reportados en~\cite{niemeyer2008}.
+\end{infobox}
+
+\subsection{Principio Piezorresistivo}
+
+La esponja de grafito reduce su resistencia al comprimirse.
+La presión normalizada leída por el ADC del ESP32 es:
+\begin{equation}
+  p_i = \frac{\text{BASELINE}_i - \text{ADC}_i}
+             {\text{BASELINE}_i - \text{PRESSED}_i},
+  \quad p_i\in[0,1]
+  \label{eq:pressure}
+\end{equation}
+con zona muerta $p_i<0{,}08\Rightarrow p_i=0$.
+
+\subsection{Estimación de Fuerza por Diferencial}
+\begin{align}
+  F_x &= (p_{\text{R}}-p_{\text{L}})\cdot15{,}0\;\text{N}  \label{eq:fx}\\
+  F_y &= (p_{\text{F}}-p_{\text{B}})\cdot15{,}0\;\text{N}  \label{eq:fy}\\
+  F_z &= p_{\text{Bot}}\cdot15{,}0\;\text{N}               \label{eq:fz}\\
+  |\bm{F}| &= \sqrt{F_x^2+F_y^2+F_z^2}                    \label{eq:fm}
+\end{align}
+
+%% ============================================================
+\section{Arquitectura del Sistema}
+\label{sec:arch}
+%% ============================================================
+
+\subsection{Visión General}
+
+El sistema integra: (1)~brazo maestro con sensores de presión de
+6~direcciones, (2)~brazo esclavo con sensores de fuerza de
+5~direcciones, (3)~dos ESP32, y (4)~\ros{} como middleware.
+La Fig.~\ref{fig:bloques} muestra la arquitectura completa.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/diagram_bloques.jpg}
+  \caption{Diagrama de bloques del sistema de teleoperación
+    maestro-esclavo. Los tópicos \ros{} en amarillo conectan los
+    nodos de la capa central. Las bandas de color indican el
+    subsistema al que pertenece cada bloque.}
+  \label{fig:bloques}
+\end{figure}
+
+\subsection{Topología de Nodos \ros{}}
+
+\begin{table}[H]
+  \centering\footnotesize\caption{Nodos \ros{} del sistema}
+  \label{tab:nodes}
+  \begin{tabular}{p{2.1cm}p{2.4cm}p{1.4cm}p{1.0cm}}
+    \toprule
+    \textbf{Nodo}&\textbf{Función}&\textbf{Publica}&\textbf{Suscribe}\\
+    \midrule
+    \rowcolor{tec_iceblue}
+    \texttt{master\_input}&Control Jacobiano&\texttt{/L\_traj}&\texttt{/joint\_states}\\
+    \texttt{dual\_mirror}&Espejo + colisión&\texttt{/R\_traj /master\_hold}&\texttt{/joint\_states /slave/force}\\
+    \rowcolor{tec_iceblue}
+    \texttt{force\_reader5}&Lectura serial&\texttt{/slave/force}&---\\
+    \texttt{force\_display5}&Visualización&---&\texttt{/slave/force}\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Flujo de Datos}
+
+En cada ciclo de 50\,ms (20\,Hz):
+\begin{enumerate}[leftmargin=1.4em,itemsep=1pt]
+  \item El ESP32 maestro envía \texttt{\{vx,vy,vz\}} por serial.
+  \item \texttt{master\_input} calcula $\bm{J}$ desde TF, computa
+        $\Delta\bm{q}$ y publica la trayectoria al maestro.
+  \item \texttt{dual\_mirror} replica las posiciones al esclavo.
+  \item El ESP32 esclavo envía \texttt{\{fx,fy,fz,fm\}} por serial.
+  \item Si $|\bm{F}|>3{,}0$\,N, publica
+        \texttt{/master\_hold=True} y ambos brazos se detienen.
+\end{enumerate}
+
+%% ============================================================
+\section{Diseño de Sensores de Presión}
+\label{sec:sensors}
+%% ============================================================
+
+\subsection{Construcción Física}
+
+Cada sensor artesanal consiste en una esponja de
+$\approx$1\,cm$^3$ impregnada con grafito en sus caras,
+dos cables conductores y cinta adhesiva de protección.
+La Fig.~\ref{fig:sensor_individual} muestra un sensor individual.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.7\columnwidth]{figs/foto_sensor_individual.jpg}
+  \caption{Sensor de presión artesanal de esponja-grafito.
+    El bloque blanco es la esponja encapsulada con cinta;
+    los cables morado y blanco conectan al divisor resistivo
+    del ESP32.}
+  \label{fig:sensor_individual}
+\end{figure}
+
+\subsection{Arreglo de 5 Sensores con ESP32}
+
+La Fig.~\ref{fig:sensores_esp32} muestra los cinco sensores del
+esclavo conectados a la protoboard y al ESP32, con cada sensor
+etiquetado según su dirección (R, L, F, B, Bottom).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/foto_sensores_esp32.jpg}
+  \caption{Arreglo completo de 5 sensores de fuerza conectados a
+    la ESP32 (lado esclavo). Cada sensor va a un pin ADC1
+    independiente a través de un divisor resistivo de 10\,k$\Omega$.
+    Se usa la misma configuración (con 6 sensores) para el maestro.}
+  \label{fig:sensores_esp32}
+\end{figure}
+
+\subsection{Montaje en el Efector Final}
+
+Las Figs.~\ref{fig:montaje1} y~\ref{fig:montaje2} muestran los
+sensores montados sobre el efector del brazo esclavo, orientados
+en las cinco direcciones cartesianas de detección.
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[b]{0.48\columnwidth}
+    \includegraphics[width=\textwidth]{figs/foto_slave_montado1.jpg}
+    \caption{Vista frontal del brazo esclavo con el arreglo
+      de sensores y el ESP32 montados.}
+    \label{fig:montaje1}
+  \end{subfigure}\hfill
+  \begin{subfigure}[b]{0.48\columnwidth}
+    \includegraphics[width=\textwidth]{figs/foto_slave_montado2.jpg}
+    \caption{Vista del efector con sensores en las
+      direcciones Right, Left, Forward y Back.}
+    \label{fig:montaje2}
+  \end{subfigure}
+  \caption{Montaje de los sensores de fuerza en el efector del
+    \xarm{} esclavo. El ESP32 va sujeto al enlace L2 del brazo
+    para minimizar el peso en el efector.}
+  \label{fig:montaje}
+\end{figure}
+
+\subsection{Firmware ESP32 y Calibración}
+
+\begin{lstlisting}[style=json,caption={JSON publicado por ESP32 esclavo a 20 Hz}]
+{"r":[2100,890,1390,2750,1180],
+ "p":[0.081,0.000,0.000,0.234,0.000],
+ "fx":1.23,"fy":-3.51,"fz":0.00,"fm":3.72}
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Normalización y suavizado en firmware}]
+float range = (float)(BASELINE[i] - PRESSED[i]);
+float val   = (float)(BASELINE[i] - raw[i]) / range;
+val = constrain(val, 0.0f, 1.0f);
+if (val < DEADZONE) val = 0.0f;   // zona muerta 8%
+smoothed[i] = ALPHA*val+(1.0f-ALPHA)*smoothed[i];
+\end{lstlisting}
+
+La Fig.~\ref{fig:terminal_arduino} muestra la salida de la terminal
+de Arduino en modo calibración cuando el operador presiona el sensor
+de dirección \emph{Forward} (\texttt{Fy+}).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/foto_terminal_arduino.jpg}
+  \caption{Salida de la terminal de Arduino (modo calibración)
+    mostrando la respuesta JSON al presionar el sensor \emph{Forward}.
+    Se observa cómo \texttt{p[2]} aumenta de 0 a $\approx$\,0{,}83
+    mientras el resto permanece en 0, y \texttt{fy} sube hasta
+    $\approx$\,12{,}4\,N. El campo \texttt{fm} refleja la magnitud
+    total de la fuerza.}
+  \label{fig:terminal_arduino}
+\end{figure}
+
+%% ============================================================
+\section{Implementación de Software}
+\label{sec:impl}
+%% ============================================================
+
+\subsection{Nodo \texttt{master\_input.py}}
+
+Recibe presiones del ESP32, calcula el Jacobiano desde TF y
+envía trayectorias articulares.
+
+\begin{lstlisting}[caption={Jacobiano + DLS en master\_input.py}]
+def _compute_jacobian_6x6(self):
+    p_ee, _, _ = self._lookup(EE_FRAME, BASE_FRAME)
+    J = np.zeros((6, 6))
+    for i, frame in enumerate(self.joint_frames):
+        p_i, R_i, _ = self._lookup(frame, BASE_FRAME)
+        z_i = R_i[:, 2]
+        J[0:3,i] = np.cross(z_i, p_ee - p_i)
+        J[3:6,i] = z_i
+    return J
+
+# DLS (lambda=0.01)
+JJT    = J @ J.T + 0.01**2 * np.eye(6)
+J_pinv = J.T @ np.linalg.inv(JJT)
+dq     = J_pinv @ np.array([vx,vy,vz,0,0,0])
+q_new  = np.clip(current_joints + dq, q_min, q_max)
+\end{lstlisting}
+
+\subsection{Nodo \texttt{dual\_mirror.py} — Detección de Colisión}
+
+\begin{lstlisting}[caption={Lógica de contacto con histéresis}]
+def force_cb(self, msg):
+    self.fm = sqrt(fx**2 + fy**2 + fz**2)
+    if (not self.hold) and self.fm >= 3.0:  # activar
+        self.hold = True
+        hold_msg = Bool(); hold_msg.data = True
+        self.master_hold_pub.publish(hold_msg)
+    elif self.hold and self.fm <= 2.0:      # liberar
+        self.hold = False
+        hold_msg = Bool(); hold_msg.data = False
+        self.master_hold_pub.publish(hold_msg)
+\end{lstlisting}
+
+\subsection{Contact Hold como Retroalimentación Háptica Simplificada}
+\label{sec:haptic}
+
+En un sistema háptico completo, la retroalimentación al operador se
+implementa aplicando torques articulares en el maestro proporcionales
+a la fuerza medida en el esclavo~\cite{hogan1985}:
+\begin{equation}
+  \bm{\tau}_{m,\text{fb}}
+    = \bm{J}_m^\top \cdot \beta \cdot \hat{\bm{F}}_{\text{ext}}
+  \label{eq:haptic}
+\end{equation}
+donde $\beta$ es el factor de escala de retroalimentación y
+$\hat{\bm{F}}_{\text{ext}}$ la fuerza estimada en el esclavo.
+Esta implementación requiere que el maestro opere en modo torque
+con acceso directo a $\bm{\tau}$, lo que no es factible con la
+SDK del \xarm{} a las frecuencias necesarias (ver
+Sección~\ref{sec:ctc}).
+
+Como alternativa, el sistema implementa \textbf{retroalimentación
+háptica posicional}: al detectar contacto ($|\bm{F}|>3{,}0$\,N),
+el maestro se congela en su posición actual publicando
+\texttt{/master\_hold=True}.
+
+Desde la perspectiva del control de impedancia~\cite{hogan1985},
+este comportamiento es equivalente a aplicar una rigidez virtual
+infinita ($K_d\to\infty$) en el maestro al momento del contacto:
+el operador ``siente'' el obstáculo porque su brazo deja de responder
+a sus comandos hasta que la fuerza desaparece, replicando la
+sensación de haber ``chocado contra una pared'' sin necesidad de
+torques activos en el actuador. Esta técnica, aunque más simple que
+la retroalimentación de fuerza continua, es suficiente para el
+objetivo principal del proyecto: evitar que el operador empuje al
+esclavo contra un obstáculo sin darse cuenta.
+
+La histéresis entre el umbral de activación (3{,}0\,N) y el de
+liberación (2{,}0\,N) previene oscilaciones rápidas de bloqueo/
+desbloqueo cuando la fuerza fluctúa cerca del umbral, mejorando
+la estabilidad perceptual del operador.
+
+\begin{infobox}[Comparativa con retroalimentacion de fuerza activa]
+  \small
+  \begin{tabular}{p{2.0cm}p{2.0cm}p{2.0cm}}
+    \toprule
+    \textbf{Propiedad} & \textbf{Ec.~\eqref{eq:haptic} (ideal)} & \textbf{Contact hold (impl.)}\\
+    \midrule
+    Retroalimentación & Continua, proporcional & Binaria (freeze/libre)\\
+    Frecuencia & $>500$\,Hz & 10--20\,Hz\\
+    Modo xArm & Torque (\texttt{mode=4}) & Servo (\texttt{mode=1})\\
+    Estabilidad & Requiere análisis $\beta_{max}$ & Inherente\\
+    Costo impl. & Alto & Bajo\\
+    \bottomrule
+  \end{tabular}
+\end{infobox}
+
+\begin{lstlisting}[style=bash,caption={Secuencia de lanzamiento}]
+# T1: robots reales (o fake para simulacion)
+ros2 launch xarm_moveit_config \
+  dual_lite6_moveit_realmove.launch.py \
+  robot_ip_1:=192.168.1.179 robot_ip_2:=192.168.1.154
+# T2: espejo + colision
+python3 dual_mirror.py --force-stop-threshold 3.0
+# T3: control maestro
+python3 master_input.py --port /dev/ttyUSB1
+# T4: sensores fuerza esclavo
+python3 force_reader5.py --port /dev/ttyUSB0
+# T5: visualizacion (opcional)
+python3 force_display5.py
+\end{lstlisting}
+
+%% ============================================================
+\section{Visualización de Fuerza en Tiempo Real}
+\label{sec:display}
+%% ============================================================
+
+El nodo \texttt{force\_display5.py} proporciona tres paneles
+actualizados a 20\,Hz: (1)~dirección de fuerza en el plano XY,
+(2)~barras por canal, y (3)~historial temporal de 10\,s.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/foto_display_libre.jpg}
+  \caption{Estado \emph{sin contacto}: todas las barras en cero,
+    $|\bm{F}|=0{,}0$\,N, sin flecha en el panel XY. El umbral de
+    detección (línea roja punteada a 2{,}5\,N) no ha sido superado.}
+  \label{fig:display_libre}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/foto_display_bajo_umbral.jpg}
+  \caption{Fuerza presente ($|\bm{F}|\approx1{,}9$\,N) pero
+    \textbf{por debajo del umbral}: el sistema reporta
+    ``Sin contacto'' aunque $F_y\approx-1{,}9$\,N es visible en la
+    barra \texttt{Fy-}. Esto confirma que la detección no es On/Off
+    sino comparada con un umbral configurable.}
+  \label{fig:display_bajo_umbral}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/foto_display_contacto.jpg}
+  \caption{Contacto detectado en dirección \emph{Forward}:
+    $F_y=+15{,}0$\,N, $|\bm{F}|=15{,}0$\,N, superando el umbral
+    de 2{,}5\,N. El panel muestra ``!! CONTACTO !!'' en rojo,
+    la flecha apunta al norte (FWD) y la barra \texttt{Fy+}
+    está saturada en rojo.}
+  \label{fig:display_contacto}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/foto_display_dos_fuerzas.jpg}
+  \caption{Contacto simultáneo en dos direcciones:
+    $F_x=-15{,}0$\,N (izquierda) y $F_y=-12{,}0$\,N (atrás),
+    con $|\bm{F}|=19{,}2$\,N. La flecha del panel XY apunta en la
+    dirección resultante (diagonal inferior-izquierda), y las barras
+    \texttt{Fx-} y \texttt{Fy-} están activas simultáneamente.
+    Esto valida la estimación vectorial de la fuerza.}
+  \label{fig:display_dos_fuerzas}
+\end{figure}
+
+%% ============================================================
+\section{Setup Experimental}
+\label{sec:setup}
+%% ============================================================
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/foto_setup_completo.jpg}
+  \caption{Setup experimental completo en el Computational
+    Robotics Lab: el brazo maestro (derecha) y el brazo esclavo
+    (izquerda) sobre la misma mesa de trabajo, con la laptop
+    central ejecutando todos los nodos \ros{} y el visualizador.}
+  \label{fig:setup}
+\end{figure}
+
+\begin{infobox}[Video de demostracion y repositorio]
+  \small
+  \textbf{Video} — teleoperación en tiempo real con ambos
+  \xarm{} y evento de \textit{contact hold}:\\
+  \url{https://youtu.be/9yoCLF5ZJVQ}\\[3pt]
+  \textbf{Repositorio GitHub} — código, firmware ESP32, datos de
+  experimentos y reporte LaTeX{}:\\
+  \url{https://github.com/kurttco/TeleOp-Haptica.git}\\
+\end{infobox}
+  \centering\footnotesize\caption{Especificaciones del hardware}
+  \label{tab:hw}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lll}
+    \toprule
+    \textbf{Componente}&\textbf{PC Maestro}&\textbf{PC Esclavo}\\
+    \midrule
+    \rowcolor{tec_iceblue}
+    OS & Ubuntu 24 + ROS2 Jazzy & Ubuntu 24 + ROS2 Jazzy\\
+    Python & 3.10+ & 3.10+\\
+    \rowcolor{tec_iceblue}
+    IP xArm & 192.168.1.179 & 192.168.1.154\\
+    ESP32 port & /dev/ttyUSB1 & /dev/ttyUSB0\\
+    \rowcolor{tec_iceblue}
+    Sensores & 6 direcciones & 5 direcciones\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+%% ============================================================
+\section{Resultados Experimentales}
+\label{sec:exp}
+%% ============================================================
+
+\subsection{Descripción de los Experimentos}
+
+Se realizaron tres pares de experimentos, ejecutando cada
+trayectoria tanto en simulación (\texttt{dual\_lite6\_moveit\_fake})
+como con los robots físicos. El operador intentó reproducir la misma
+trayectoria en ambos entornos para una comparación válida.
+La Tabla~\ref{tab:exp_overview} resume las condiciones.
+
+\begin{table}[H]
+  \centering\footnotesize\caption{Resumen de los seis experimentos}
+  \label{tab:exp_overview}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{llccc}
+    \toprule
+    \textbf{Par}&\textbf{Cond.}&\textbf{Dur.}&\textbf{Muestras}&\textbf{Holds}\\
+    \midrule
+    \rowcolor{tec_iceblue}
+    \multirow{2}{*}{1}&Sim & 342\,s & 740  & 1\\
+                       &Real& 287\,s & 2870 & 4\\
+    \rowcolor{tec_paleblue}
+    \multirow{2}{*}{2}&Sim &  92\,s & 769  & 0\\
+                       &Real& 118\,s & 1180 & 3\\
+    \rowcolor{tec_iceblue}
+    \multirow{2}{*}{3}&Sim &  40\,s & 304  & 0\\
+                       &Real&  62\,s &  620 & 2\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Seguimiento Articular — Simulación vs. Real}
+
+La Fig.~\ref{fig:tracking} muestra las trayectorias maestro y
+esclavo superpuestas para los seis experimentos.
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=\textwidth]{figs/fig1_tracking.jpg}
+  \caption{Seguimiento articular maestro-esclavo para los tres
+    pares de experimentos (columnas izquierdas\,=\,simulación en
+    azul; columnas derechas\,=\,robot real en rojo). Las bandas
+    amarillas indican los instantes de \textit{contact hold} en los
+    experimentos reales. En la simulación, maestro y esclavo
+    siguen trayectorias casi idénticas con mínima separación visual;
+    en el robot real se aprecia un ligero desfase temporal de
+    $\approx$\,150\,ms y una oscilación de pequeña amplitud.}
+  \label{fig:tracking}
+\end{figure*}
+
+\subsection{Error de Seguimiento}
+
+La Fig.~\ref{fig:error} muestra el error articular
+$e_i(t)=q_i^m(t)-q_i^s(t)$ para los seis joints.
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=\textwidth]{figs/fig2_error.jpg}
+  \caption{Error de seguimiento $e_i(t)=q_i^{\text{maestro}}-q_i^{\text{esclavo}}$
+    en grados. Azul\,=\,simulación; naranja\,=\,robot real.
+    Las zonas amarillas indican los eventos de
+    \textit{contact hold}. El pico de 31° en J3 de la simulación
+    (Par\,1) corresponde al artefacto de snap post-hold del
+    simulador; en el robot real el controlador interno interpola
+    esa transición distribuyéndola en $\approx$\,3--5 muestras.}
+  \label{fig:error}
+\end{figure*}
+
+\subsubsection{Comportamiento en Simulación}
+
+El esclavo replica al maestro con alta fidelidad debido a la
+latencia de loopback ($<$\,1\,ms) y al modelo dinámico idéntico.
+El error $e_i(t)$ permanece en $\pm 2$--$5$° durante el movimiento
+continuo. La única excepción es el pico de 31° en J3 del Par~1
+al liberar el contact hold: el nodo \texttt{dual\_mirror} envía
+la posición del maestro sin interpolación y el simulador la acepta
+instantáneamente.
+
+\subsubsection{Comportamiento en el Robot Real}
+
+Dos diferencias principales respecto a la simulación:
+
+\begin{enumerate}[leftmargin=1.4em,itemsep=2pt]
+  \item \textbf{Retardo de 100--150\,ms.} La cadena de latencias
+        incluye: lectura de \texttt{/joint\_states} ($\approx$\,10\,ms),
+        publicación TCP/Ethernet ($\approx$\,15\,ms) y procesamiento
+        interno del controlador \xarm{} ($\approx$\,100\,ms en
+        modo SERVO).
+  \item \textbf{Oscilaciones($\pm$\,0{,}5--2°).}
+        Causada por: (a)~ruido del encoder ($\approx$\,0{,}1°),
+        (b)~oscilaciones del PID interno ante referencias rápidas,
+        y (c)~eventos de slip mecánico con decaimiento exponencial.
+\end{enumerate}
+
+\subsubsection{Articulación J4}
+
+En los pares~1 y~3, J4 casi no se mueve ($<$\,0{,}5°). En
+simulación el error es prácticamente cero; en el real
+$\approx$\,0{,}1° por vibraciones transmitidas de otras
+articulaciones. En el Par~2 (rango $\approx$\,41°), los errores
+son comparables entre ambas condiciones.
+
+\subsection{Métricas de Desempeño}
+
+\begin{table}[H]
+  \centering\footnotesize
+  \caption{Error RMS [°] por articulación y condición}
+  \label{tab:metrics}
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{llccccccc}
+    \toprule
+    \multirow{2}{*}{\textbf{Par}}&\multirow{2}{*}{\textbf{Cond.}}&
+    \multicolumn{6}{c}{\textbf{RMS por articulación [°]}}&\textbf{Global}\\
+    \cmidrule(lr){3-8}
+    &&J1&J2&J3&J4&J5&J6&\\
+    \midrule
+    \rowcolor{tec_iceblue}
+    \multirow{2}{*}{1}&Sim &0.37&1.27&1.77&0.00&1.17&0.37&1.03\\
+    &Real&0.15&0.41&0.54&0.11&0.39&0.15&0.33\\
+    \rowcolor{tec_paleblue}
+    \multirow{2}{*}{2}&Sim &0.91&0.89&0.75&0.50&0.68&0.59&0.73\\
+    &Real&0.56&0.46&0.39&0.27&0.36&0.44&0.42\\
+    \rowcolor{tec_iceblue}
+    \multirow{2}{*}{3}&Sim &0.53&1.66&0.45&0.02&1.32&0.52&0.93\\
+    &Real&0.25&1.97&0.25&0.10&1.80&0.26&1.10\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+La Figs.~\ref{fig:metrics} y~\ref{fig:summary} presentan
+la comparativa gráfica.
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=\textwidth]{figs/fig3_metrics.jpg}
+  \caption{Comparativa de error RMS (fila superior) y error
+    máximo (fila inferior) por articulación para los tres pares.
+    Azul\,=\,simulación; rojo\,=\,robot real. Los valores $\Delta$
+    en verde indican que el robot real fue mejor; en rojo, que fue
+    peor. Nótese que en el Par\,1 el simulador tiene errores
+    significativamente mayores en J2, J3 y J5 por el artefacto
+    del snap post-hold.}
+  \label{fig:metrics}
+\end{figure*}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/fig4_summary.jpg}
+  \caption{\textit{Izquierda:} RMS global por par.
+    \textit{Derecha:} mapa de calor del RMS por articulación;
+    tonos más oscuros indican mayor error. J2, J3 y J5 son
+    consistentemente las articulaciones con mayor error por
+    su mayor rango y velocidad; J1, J4 y J6 permanecen bajos.}
+  \label{fig:summary}
+\end{figure}
+
+\subsection{Análisis: ¿Por qué RMS real $<$ RMS simulación?}
+
+\begin{infobox}[Explicación del resultado contraintuitivo]
+  \small
+  En los pares~1 y~2, el RMS global del robot real
+  (0{,}33--0{,}42°) es \textbf{menor} que el de la simulación
+  (0{,}73--1{,}03°). Esto se debe a dos causas:
+
+  \textbf{(1) Snap post-hold en simulación.}
+  Al liberar un contact hold, el simulador ejecuta un salto
+  instantáneo de hasta 2{,}6\,rad en 0{,}1\,s (26\,rad/s,
+  imposible físicamente), que infla el RMS de toda la sesión.
+
+  \textbf{(2) Mayor duración de las sesiones simuladas.}
+  La sesión simulada del Par\,1 dura 342\,s vs.\ 287\,s del real,
+  acumulando más tramos de movimiento rápido donde el error es mayor.
+
+  En el \textbf{Par\,3} el robot real sí supera al simulado
+  (1{,}10° vs.\ 0{,}93°), que es el comportamiento canónico.
+  Para un análisis justo, el simulador debería implementar
+  interpolación de trayectoria al salir del hold.
+\end{infobox}
+
+\subsection{Tendencias Globales}
+
+El mapa de calor (Fig.~\ref{fig:summary}) revela dos patrones
+transversales:
+\begin{itemize}[leftmargin=1.2em,itemsep=2pt]
+  \item \textbf{J2, J3, J5} tienen los mayores errores en ambas
+        condiciones: son las articulaciones de mayor rango y
+        velocidad, por lo que el retardo de 100--150\,ms genera
+        errores proporcionales.
+  \item \textbf{J1, J4, J6} permanecen bajos ($<$\,1°):
+        J1 (base) se mueve lento; J4 tiene rango limitado en
+        estas trayectorias; J6 (rotación efector) se fija a
+        cero por diseño.
+\end{itemize}
+
+%% ============================================================
+\section{Discusión}
+\label{sec:disc}
+%% ============================================================
+
+\subsection{Limitaciones del Sistema}
+\begin{itemize}[leftmargin=1.2em,itemsep=2pt]
+  \item \textbf{Deriva de sensores:} el BASELINE de la esponja
+        se desplaza con temperatura y envejecimiento, requiriendo
+        recalibración periódica.
+  \item \textbf{Frecuencia de control (10--20\,Hz):} baja respecto
+        a sistemas comerciales ($>$\,1\,kHz); limita la velocidad
+        máxima segura.
+  \item \textbf{Snap post-hold en simulador:} sin interpolación
+        al salir del hold, el error simulado se infla artificialmente.
+  \item \textbf{Detección binaria de contacto:} no cuantifica
+        fuerzas calibradas en Newtons absolutos.
+\end{itemize}
+
+\subsection{Trabajo Futuro}
+\begin{itemize}[leftmargin=1.2em,itemsep=2pt]
+  \item Integrar un sensor F/T comercial para validar la
+        estimación artesanal.
+  \item Implementar control de impedancia virtual~\cite{hogan1985}
+        en lugar de parada abrupta.
+  \item Añadir retroalimentación háptica activa:
+        $\bm{\tau}_{m,fb}=\bm{J}_m^\top\cdot\beta\cdot\hat{\bm{F}}_{ext}$.
+  \item Implementar interpolación de trayectoria al salir del
+        contact hold en el simulador.
+\end{itemize}
+
+%% ============================================================
+\section{Conclusiones}
+\label{sec:conc}
+%% ============================================================
+
+\IEEEPARstart{E}{ste} proyecto logró construir un sistema funcional
+de teleoperación donde un operador puede mover un brazo robótico
+con la mano y ver cómo otro brazo, en otro lugar, replica exactamente
+ese movimiento en tiempo real. Para lograrlo, se fabricaron sensores
+de presión caseros con esponja y grafito, se programaron dos
+microcontroladores ESP32 y se conectó todo a través de \ros{} Jazzy.
+ 
+Uno de los resultados más satisfactorios fue la detección de
+contacto: cuando el brazo esclavo choca contra un obstáculo, ambos
+brazos se detienen automáticamente en menos de 100\,ms, protegiendo
+tanto al robot como al entorno. Al retirar el obstáculo, el sistema
+reanuda la operación por sí solo.
+ 
+Los sensores artesanales resultaron sorprendentemente útiles para
+detectar si hay contacto o no, aunque requieren calibración
+individual y se descalibran con el tiempo y la temperatura. El
+software de control demostró que es posible mover un brazo en
+cualquier dirección cartesiana sin necesidad de programar
+manualmente la geometría del robot, simplemente calculando el
+Jacobiano desde la información de posición que ya publica \ros{}.
+ 
+Los errores de seguimiento medidos (0{,}33--1{,}10°\,RMS) y el
+retardo de $\approx$\,100--150\,ms en el robot físico son resultados
+razonables para un sistema construido con hardware de bajo costo y
+sin sensores de fuerza comerciales.
+El código, firmware y datos están disponibles
+públicamente~\cite{repo}.
+
+\section*{Agradecimientos}
+Los autores agradecen al Computational Robotics Lab del Tecnológico
+de Monterrey y al Prof.\ Alberto Muñoz por el equipo robótico y
+la orientación académica.
+
+%% ── Bibliografía ─────────────────────────────────────────────
+\begin{thebibliography}{11}
+\bibitem{xarm_github}
+  UFACTORY, ``xArm-Python-SDK,'' GitHub, 2024.
+  [En línea]: \url{https://github.com/xArm-developer/xArm-Python-SDK}
+\bibitem{siciliano2009}
+  B.~Siciliano \textit{et al.},
+  \textit{Robotics: Modelling, Planning and Control}. Springer, 2009.
+\bibitem{spong2006}
+  M.\,W.~Spong, S.~Hutchinson, M.~Vidyasagar,
+  \textit{Robot Modeling and Control}. Wiley, 2006.
+\bibitem{hogan1985}
+  N.~Hogan, ``Impedance Control,''
+  \textit{ASME J.\ Dyn.\ Sys.}, vol.\,107, 1985.
+\bibitem{colgate1993}
+  J.\,E.~Colgate, J.\,M.~Brown, ``Factors affecting the Z-width,''
+  \textit{Proc.\ IEEE ICRA}, 1994.
+\bibitem{murray1994}
+  R.\,M.~Murray, Z.~Li, S.\,S.~Sastry,
+  \textit{A Mathematical Introduction to Robotic Manipulation}.
+  CRC Press, 1994.
+\bibitem{niemeyer2008}
+  G.~Niemeyer, C.~Preusche, G.~Hirzinger, ``Telerobotics,''
+  \textit{Springer Handbook of Robotics}, 2008.
+\bibitem{thompson2001}
+  S.~Thompson \textit{et al.},
+  ``Using a stationary camera\ldots,''
+  \textit{IEEE Trans.\ SMC-A}, vol.\,31(1), pp.\,74--82, 2001.
+\bibitem{safeea2023}
+  M.~Safeea, P.~Neto,
+  ``Minimum time trajectory planning for cobots
+  using jerk-limited motion profiles,''
+  \textit{IEEE Trans.\ Ind.\ Electron.}, vol.\,70, no.\,9,
+  pp.\,9112--9121, Sep.\ 2023.
+\bibitem{repo}
+  ``Teleoperaci\'on con Sensado de Fuerza --- \xarm{},''
+  GitHub, 2026.
+  [En l\'inea]: \url{https://github.com/kurttco/TeleOp-Haptica.git}
+\end{thebibliography}
+
+\end{document}
+%% ============================================================
