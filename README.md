@@ -46,7 +46,7 @@ teleop_xarm_lite6/
 │       ├── log_real1.xlsx
 │       ├── log_real2.xlsx
 │       └── log_real3.xlsx
-├── figures/                   # Gráficas generadas del análisis
+├── figs/                      # Gráficas generadas del análisis
 │   ├── diagram_bloques.png
 │   ├── fig1_tracking.png
 │   ├── fig2_error.png
@@ -92,11 +92,11 @@ ros2 launch xarm_moveit_config dual_lite6_moveit_realmove.launch.py \
 # Terminal 1 — Alternativa: simulación
 ros2 launch xarm_moveit_config dual_lite6_moveit_fake.launch.py
 
-# Terminal 2 — Espejo maestro→esclavo + detección de colisión
-python3 code/dual_mirror.py --force-stop-threshold 3.0 --force-resume-threshold 2.0
+# Terminal 2 — Espejo maestro→esclavo
+python3 code/dual_mirror.py
 
 # Terminal 3 — Control del brazo maestro
-python3 code/master_input.py --port /dev/ttyUSB1 --speed 1.0
+python3 code/master_input.py --port /dev/ttyUSB1
 
 # Terminal 4 — Lector de fuerza del esclavo
 python3 code/force_reader5.py --port /dev/ttyUSB0
@@ -146,9 +146,9 @@ d2 = np.array(list(openpyxl.load_workbook('data/sim/log_experimento2.xlsx')
 d3 = np.array(list(openpyxl.load_workbook('data/sim/log_experimento3.xlsx')
                    .active.iter_rows(values_only=True)), dtype=float)
 
-sim1 = d1[3172:3912]        # Exp 1: 2026-03-14 09:03–09:09 (342 s)
-sim2 = d3[len(d1):len(d2)]  # Exp 2: 2026-03-14 09:13–09:15  (92 s)
-sim3 = d3[len(d2):]         # Exp 3: 2026-03-14 09:17–09:18  (40 s)
+sim1 = d1[3172:3912]        
+sim2 = d3[len(d1):len(d2)] 
+sim3 = d3[len(d2):]         
 ```
 
 ---
@@ -168,9 +168,12 @@ sim3 = d3[len(d2):]         # Exp 3: 2026-03-14 09:17–09:18  (40 s)
 
 ## Autores
 
-- Nombre Alumno 1 — `matricula1@tec.mx`
-- Nombre Alumno 2 — `matricula2@tec.mx`
-- Nombre Alumno 3 — `matricula3@tec.mx`
+- Fabricio Banda Hernandez | `a00839916@tec.mx`
+- Manuel Ferro Sánchez | `a00836182@tec.mx`
+- Alexandro Kurt Cardenas Perez | `a01385387@tec.mx`
+- Fernando Proal Sifuentes | `a01385446@tec.mx`
+- Zacbe Ortega | `a00574358@tec.mx`
+
 
 ---
 
