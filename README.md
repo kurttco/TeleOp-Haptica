@@ -46,7 +46,7 @@ teleop_xarm_lite6/
 │       ├── log_real1.xlsx
 │       ├── log_real2.xlsx
 │       └── log_real3.xlsx
-├── figs/                      # Gráficas generadas del análisis
+├── figures/                   # Gráficas generadas del análisis
 │   ├── diagram_bloques.png
 │   ├── fig1_tracking.png
 │   ├── fig2_error.png
